@@ -1,6 +1,6 @@
 /*!
  * TOAST UI Calendar
- * @version 1.2.0-alpha | Wed May 16 2018
+ * @version 1.2.0-alpha.1 | Wed May 16 2018
  * @author NHNEnt FE Development Lab <dl_javascript@nhnent.com>
  * @license MIT
  */
@@ -9620,7 +9620,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    {
 	        name: 'allday',
 	        type: 'daygrid',
-	        minHeight: 20,
+	        minHeight: 30,
 	        maxHeight: 80,
 	        showExpandableButton: true,
 	        maxExpandableHeight: 210,
