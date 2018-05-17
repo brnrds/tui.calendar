@@ -12,7 +12,7 @@
     var datePicker, selectedCalendar;
 
     cal = new Calendar('#calendar', {
-        defaultView: 'month',
+        defaultView: 'week',
         useCreationPopup: useCreationPopup,
         useDetailPopup: useDetailPopup,
         calendars: CalendarList,
@@ -27,6 +27,17 @@
                 return getTimeTemplate(schedule, false);
             }
         }
+        // ,
+        // timezones: [
+        //     {
+        //         timezoneOffset: -570,
+        //         tooltip: 'Seoul'
+        //     },
+        //     {
+        //         timezoneOffset: 540,
+        //         tooltip: 'Los Angeles'
+        //     }
+        // ]
     });
 
     // event handlers
