@@ -11974,13 +11974,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * @returns {Array.<Object>}
 	 */
 	function getHoursLabels(start, end, hasHourMarker, timezoneOffset) {
-	    var shiftByOffset = timezoneOffset / SIXTY_MINUTES;
+	    var shiftByOffset = parseInt(timezoneOffset / SIXTY_MINUTES, 10);
 	    var shiftMinutes = Math.abs(timezoneOffset % SIXTY_MINUTES);
 	    var now = new TZDate();
 	    var nowMinutes = now.getMinutes();
-	    var nowHours = common.shiftHours(now.getHours(), shiftByOffset);
 	    var hoursRange = util.range(0, 24);
 	    var nowAroundHours = null;
+	    var nowHours;
+	
+	    if (shiftByOffset < 0 && shiftMinutes > 0) {
+	        shiftByOffset -= 1;
+	    }
+	
+	    nowHours = common.shiftHours(now.getHours(), shiftByOffset);
 	
 	    // shift the array and take elements between start and end
 	    common.shiftArray(hoursRange, shiftByOffset);
@@ -12102,7 +12108,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        this._autoScroll.destroy();
 	    }
 	
-	    this._autoScroll = this.hourmarker = this.intervalID = this.timerID = this._cacheParentViewModel = null;
+	    this._autoScroll = this.hourmarkers = this.intervalID = this.timerID = this._cacheParentViewModel = null;
 	};
 	
 	/**
@@ -12129,17 +12135,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	/**
 	 * Get Hourmarker viewmodel.
-	 * @param {Date} now - now
+	 * @param {TZDate} now - now
 	 * @param {object} grids grid information(width, left, day)
 	 * @param {Array.<TZDate>} range render range
-	 * @param {Theme} theme - theme instance
 	 * @returns {object} ViewModel of hourmarker.
 	 */
-	TimeGrid.prototype._getHourmarkerViewModel = function(now, grids, range, theme) {
-	    var todaymarkerLeft = -1,
-	        todaymarkerWidth = -1,
-	        styles = this._getStyles(theme),
-	        viewModel;
+	TimeGrid.prototype._getHourmarkerViewModel = function(now, grids, range) {
+	    var todaymarkerLeft = -1;
+	    var todaymarkerWidth = -1;
+	    var hourmarkerTexts = [];
+	    var opt = this.options;
+	    var primaryOffset = Timezone.getOffset();
+	    var timezones = opt.timezones;
+	    var viewModel;
 	
 	    now = now || new TZDate();
 	
@@ -12150,14 +12158,21 @@ return /******/ (function(modules) { // webpackBootstrap
 	        }
 	    });
 	
+	    util.forEach(timezones, function(timezone) {
+	        var timezoneDifference = timezone.timezoneOffset + primaryOffset;
+	        var hourmarker = new TZDate(now);
+	
+	        hourmarker.setMinutes(hourmarker.getMinutes() + timezoneDifference);
+	        hourmarkerTexts.push(datetime.format(hourmarker, 'HH:mm'));
+	    });
+	
 	    viewModel = {
 	        currentHours: now.getHours(),
 	        hourmarkerTop: this._getTopPercentByTime(now),
-	        hourmarkerText: datetime.format(now, 'HH:mm'),
+	        hourmarkerTexts: hourmarkerTexts,
 	        todaymarkerLeft: todaymarkerLeft,
 	        todaymarkerWidth: todaymarkerWidth,
-	        todaymarkerRight: todaymarkerLeft + todaymarkerWidth,
-	        styles: styles
+	        todaymarkerRight: todaymarkerLeft + todaymarkerWidth
 	    };
 	
 	    return viewModel;
@@ -12177,12 +12192,18 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var timezonesLength = timezones.length;
 	    var timezoneViewModel = [];
 	    var width = 100 / timezonesLength;
+	    var now = new TZDate();
 	
 	    util.forEach(timezones, function(timezone, index) {
+	        var hourmarker = new TZDate(now);
+	        var timezoneDifference;
 	        var timeSlots;
 	
 	        timezone = timezones[timezones.length - index - 1];
-	        timeSlots = getHoursLabels(hourStart, hourEnd, currentHours >= 0, timezone.timezoneOffset + primaryOffset);
+	        timezoneDifference = timezone.timezoneOffset + primaryOffset;
+	        timeSlots = getHoursLabels(hourStart, hourEnd, currentHours >= 0, timezoneDifference);
+	
+	        hourmarker.setMinutes(hourmarker.getMinutes() + timezoneDifference);
 	
 	        timezoneViewModel.unshift({
 	            timeSlots: timeSlots,
@@ -12191,7 +12212,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	            tooltip: timezone.tooltip || '',
 	            width: width,
 	            left: index * width,
-	            isPrimary: index === timezonesLength - 1
+	            isPrimary: index === timezonesLength - 1,
+	            hourmarkerText: datetime.format(hourmarker, 'HH:mm')
 	        });
 	    });
 	
@@ -12207,7 +12229,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    var grids = viewModel.grids;
 	    var range = viewModel.range;
 	    var opt = this.options;
-	    var baseViewModel = this._getHourmarkerViewModel(new TZDate(), grids, range, viewModel.theme);
+	    var baseViewModel = this._getHourmarkerViewModel(new TZDate(), grids, range);
 	
 	    return util.extend(baseViewModel, {
 	        timezones: this._getTimezoneViewModel(baseViewModel.todaymarkerLeft),
@@ -12310,7 +12332,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    /**********
 	     * Render hourmarker
 	     **********/
-	    this.hourmarker = domutil.find(config.classname('.timegrid-hourmarker'), container);
+	    this.hourmarkers = domutil.find(config.classname('.timegrid-hourmarker'), container, true);
 	
 	    if (!this._scrolled) {
 	        this._scrolled = true;
@@ -12337,25 +12359,31 @@ return /******/ (function(modules) { // webpackBootstrap
 	 * Refresh hourmarker element.
 	 */
 	TimeGrid.prototype.refreshHourmarker = function() {
-	    var hourmarker = this.hourmarker,
+	    var hourmarkers = this.hourmarkers,
 	        grids = this._cacheParentViewModel ? this._cacheParentViewModel.grids : null,
 	        range = this._cacheParentViewModel ? this._cacheParentViewModel.range : null,
-	        viewModel = this._getHourmarkerViewModel(new TZDate(), grids, range),
-	        todaymarker,
-	        hourmarkerText;
+	        viewModel = this._getHourmarkerViewModel(new TZDate(), grids, range);
 	
-	    if (!hourmarker || !viewModel) {
+	    if (!hourmarkers || !viewModel) {
 	        return;
 	    }
 	
-	    todaymarker = domutil.find(config.classname('.timegrid-todaymarker'), hourmarker);
-	    hourmarkerText = domutil.find(config.classname('.timegrid-hourmarker-time'), hourmarker);
-	
 	    reqAnimFrame.requestAnimFrame(function() {
-	        hourmarker.style.display = 'block';
-	        hourmarker.style.top = viewModel.hourmarkerTop + '%';
-	        todaymarker.style.display = (viewModel.todaymarkerLeft >= 0) ? 'block' : 'none';
-	        hourmarkerText.innerHTML = viewModel.hourmarkerText;
+	        util.forEach(hourmarkers, function(hourmarker) {
+	            var todaymarker = domutil.find(config.classname('.timegrid-todaymarker'), hourmarker);
+	            var hourmarkerText = domutil.find(config.classname('.timegrid-hourmarker-time'), hourmarker);
+	            var timezone = domutil.closest(hourmarker, config.classname('.timegrid-timezone'));
+	            var timezoneIndex = timezone ? domutil.getData(timezone, 'timezoneIndex') : 0;
+	
+	            hourmarker.style.top = viewModel.hourmarkerTop + '%';
+	
+	            if (todaymarker) {
+	                todaymarker.style.display = (viewModel.todaymarkerLeft >= 0) ? 'block' : 'none';
+	            }
+	            if (hourmarkerText) {
+	                hourmarkerText.innerHTML = viewModel.hourmarkerTexts[timezoneIndex];
+	            }
+	        });
 	    });
 	};
 	
@@ -12387,7 +12415,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	        return;
 	    }
 	
-	    offsetTop = this.hourmarker.offsetTop;
+	    offsetTop = this.hourmarkers[0].offsetTop;
 	    viewBound = this.getViewBound();
 	    scrollTop = offsetTop;
 	    scrollAmount = viewBound.height / 4;
@@ -13434,8 +13462,8 @@ return /******/ (function(modules) { // webpackBootstrap
 	
 	  return "<div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
-	    + "timegrid-timezone\" data-timezone=\""
-	    + alias4(((helper = (helper = helpers.displayLabel || (depth0 != null ? depth0.displayLabel : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"displayLabel","hash":{},"data":data}) : helper)))
+	    + "timegrid-timezone\" data-timezone-index=\""
+	    + alias4(((helper = (helper = helpers.index || (data && data.index)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"index","hash":{},"data":data}) : helper)))
 	    + "\" style=\"position: absolute; top: 0; width: "
 	    + alias4(((helper = (helper = helpers.width || (depth0 != null ? depth0.width : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"width","hash":{},"data":data}) : helper)))
 	    + "%; left: "
@@ -13445,12 +13473,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	    + "; background-color: "
 	    + alias4(alias5(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.leftBackgroundColor), depth0))
 	    + ";\" >\n"
-	    + ((stack1 = helpers["if"].call(alias1,(depth0 != null ? depth0.isPrimary : depth0),{"name":"if","hash":{},"fn":container.program(2, data, 0),"inverse":container.program(6, data, 0),"data":data})) != null ? stack1 : "")
+	    + ((stack1 = helpers["if"].call(alias1,(depth0 != null ? depth0.isPrimary : depth0),{"name":"if","hash":{},"fn":container.program(2, data, 0),"inverse":container.program(8, data, 0),"data":data})) != null ? stack1 : "")
 	    + "        </div>\n";
 	},"2":function(container,depth0,helpers,partials,data) {
-	    var stack1;
+	    var stack1, alias1=depth0 != null ? depth0 : (container.nullContext || {});
 	
-	  return ((stack1 = helpers.each.call(depth0 != null ? depth0 : (container.nullContext || {}),(depth0 != null ? depth0.timeSlots : depth0),{"name":"each","hash":{},"fn":container.program(3, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "");
+	  return ((stack1 = helpers.each.call(alias1,(depth0 != null ? depth0.timeSlots : depth0),{"name":"each","hash":{},"fn":container.program(3, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
+	    + ((stack1 = helpers["if"].call(alias1,((stack1 = (data && data.root)) && stack1.showHourMarker),{"name":"if","hash":{},"fn":container.program(6, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "");
 	},"3":function(container,depth0,helpers,partials,data) {
 	    var stack1, helper, alias1=depth0 != null ? depth0 : (container.nullContext || {}), alias2=helpers.helperMissing, alias3="function", alias4=container.escapeExpression;
 	
@@ -13470,10 +13499,31 @@ return /******/ (function(modules) { // webpackBootstrap
 	},"4":function(container,depth0,helpers,partials,data) {
 	    return "display:none";
 	},"6":function(container,depth0,helpers,partials,data) {
-	    var stack1;
+	    var stack1, helper, alias1=depth0 != null ? depth0 : (container.nullContext || {}), alias2=helpers.helperMissing, alias3="function", alias4=container.escapeExpression, alias5=container.lambda;
 	
-	  return ((stack1 = helpers.each.call(depth0 != null ? depth0 : (container.nullContext || {}),(depth0 != null ? depth0.timeSlots : depth0),{"name":"each","hash":{},"fn":container.program(7, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "");
-	},"7":function(container,depth0,helpers,partials,data) {
+	  return "                <div class=\""
+	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
+	    + "timegrid-hourmarker\" style=\"top:"
+	    + alias4(alias5(((stack1 = (data && data.root)) && stack1.hourmarkerTop), depth0))
+	    + "%\">\n                    <div class=\""
+	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
+	    + "timegrid-hourmarker-wrap\">\n                        <div class=\""
+	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
+	    + "timegrid-hourmarker-time\" style=\"color: "
+	    + alias4(alias5(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.currentTimeColor), depth0))
+	    + "; font-size: "
+	    + alias4(alias5(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.currentTimeFontSize), depth0))
+	    + "; font-weight: "
+	    + alias4(alias5(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.currentTimeFontWeight), depth0))
+	    + "\">"
+	    + alias4(((helper = (helper = helpers.hourmarkerText || (depth0 != null ? depth0.hourmarkerText : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"hourmarkerText","hash":{},"data":data}) : helper)))
+	    + "</div>\n                    </div>\n                </div>\n";
+	},"8":function(container,depth0,helpers,partials,data) {
+	    var stack1, alias1=depth0 != null ? depth0 : (container.nullContext || {});
+	
+	  return ((stack1 = helpers.each.call(alias1,(depth0 != null ? depth0.timeSlots : depth0),{"name":"each","hash":{},"fn":container.program(9, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
+	    + ((stack1 = helpers["if"].call(alias1,((stack1 = (data && data.root)) && stack1.showHourMarker),{"name":"if","hash":{},"fn":container.program(6, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "");
+	},"9":function(container,depth0,helpers,partials,data) {
 	    var stack1, helper, alias1=depth0 != null ? depth0 : (container.nullContext || {}), alias2=helpers.helperMissing, alias3="function", alias4=container.escapeExpression;
 	
 	  return "<div class=\""
@@ -13489,7 +13539,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    + "\">"
 	    + ((stack1 = (helpers["timegridDisplayTime-tmpl"] || (depth0 && depth0["timegridDisplayTime-tmpl"]) || alias2).call(alias1,depth0,{"name":"timegridDisplayTime-tmpl","hash":{},"data":data})) != null ? stack1 : "")
 	    + "</span>\n                </div>\n";
-	},"9":function(container,depth0,helpers,partials,data) {
+	},"11":function(container,depth0,helpers,partials,data) {
 	    var stack1, helper, alias1=depth0 != null ? depth0 : (container.nullContext || {}), alias2=helpers.helperMissing, alias3="function", alias4=container.escapeExpression, alias5=container.lambda;
 	
 	  return "<div class=\""
@@ -13497,7 +13547,7 @@ return /******/ (function(modules) { // webpackBootstrap
 	    + "timegrid-gridline\" style=\"height: "
 	    + alias4(alias5(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.oneHourHeight), depth0))
 	    + ";\n"
-	    + ((stack1 = helpers.unless.call(alias1,(data && data.last),{"name":"unless","hash":{},"fn":container.program(10, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
+	    + ((stack1 = helpers.unless.call(alias1,(data && data.last),{"name":"unless","hash":{},"fn":container.program(12, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
 	    + "        \">\n            <div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
 	    + "timegrid-gridline-half\" style=\"height: "
@@ -13505,13 +13555,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	    + "; border-bottom: "
 	    + alias4(alias5(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.halfHourBorderBottom), depth0))
 	    + ";\"></div>\n        </div>\n";
-	},"10":function(container,depth0,helpers,partials,data) {
+	},"12":function(container,depth0,helpers,partials,data) {
 	    var stack1;
 	
 	  return "            border-bottom: "
 	    + container.escapeExpression(container.lambda(((stack1 = ((stack1 = (data && data.root)) && stack1.styles)) && stack1.borderBottom), depth0))
 	    + ";\n";
-	},"12":function(container,depth0,helpers,partials,data) {
+	},"14":function(container,depth0,helpers,partials,data) {
 	    var stack1, helper, alias1=depth0 != null ? depth0 : (container.nullContext || {}), alias2=helpers.helperMissing, alias3="function", alias4=container.escapeExpression, alias5=container.lambda;
 	
 	  return "    <div class=\""
@@ -13521,16 +13571,6 @@ return /******/ (function(modules) { // webpackBootstrap
 	    + "%\">\n        <div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
 	    + "timegrid-hourmarker-wrap\">\n            <div class=\""
-	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
-	    + "timegrid-hourmarker-time\" style=\"color: "
-	    + alias4(alias5(((stack1 = (depth0 != null ? depth0.styles : depth0)) != null ? stack1.currentTimeColor : stack1), depth0))
-	    + "; font-size: "
-	    + alias4(alias5(((stack1 = (depth0 != null ? depth0.styles : depth0)) != null ? stack1.currentTimeFontSize : stack1), depth0))
-	    + "; font-weight: "
-	    + alias4(alias5(((stack1 = (depth0 != null ? depth0.styles : depth0)) != null ? stack1.currentTimeFontWeight : stack1), depth0))
-	    + "\">"
-	    + alias4(((helper = (helper = helpers.hourmarkerText || (depth0 != null ? depth0.hourmarkerText : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"hourmarkerText","hash":{},"data":data}) : helper)))
-	    + "</div>\n            <div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
 	    + "timegrid-hourmarker-line-left\" style=\"width:"
 	    + alias4(((helper = (helper = helpers.todaymarkerLeft || (depth0 != null ? depth0.todaymarkerLeft : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"todaymarkerLeft","hash":{},"data":data}) : helper)))
@@ -13575,13 +13615,13 @@ return /******/ (function(modules) { // webpackBootstrap
 	    + ";\">\n    <div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
 	    + "timegrid-h-grid\">\n"
-	    + ((stack1 = helpers.each.call(alias1,(depth0 != null ? depth0.hoursLabels : depth0),{"name":"each","hash":{},"fn":container.program(9, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
+	    + ((stack1 = helpers.each.call(alias1,(depth0 != null ? depth0.hoursLabels : depth0),{"name":"each","hash":{},"fn":container.program(11, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
 	    + "</div>\n    <div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
 	    + "timegrid-schedules\">\n        <div class=\""
 	    + alias4(((helper = (helper = helpers.CSS_PREFIX || (depth0 != null ? depth0.CSS_PREFIX : depth0)) != null ? helper : alias2),(typeof helper === alias3 ? helper.call(alias1,{"name":"CSS_PREFIX","hash":{},"data":data}) : helper)))
 	    + "timegrid-schedules-container\"></div>\n    </div>\n\n"
-	    + ((stack1 = helpers["if"].call(alias1,(depth0 != null ? depth0.showHourMarker : depth0),{"name":"if","hash":{},"fn":container.program(12, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
+	    + ((stack1 = helpers["if"].call(alias1,(depth0 != null ? depth0.showHourMarker : depth0),{"name":"if","hash":{},"fn":container.program(14, data, 0),"inverse":container.noop,"data":data})) != null ? stack1 : "")
 	    + "</div>\n";
 	},"useData":true});
 

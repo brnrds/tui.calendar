@@ -396,8 +396,7 @@
 }
 .tui-full-calendar-timegrid-hourmarker-time {
   position: absolute;
-  width: 52px;
-  left: -60px;
+  right: 7px;
   top: -6px;
   line-height: 12px;
   text-align: right;
