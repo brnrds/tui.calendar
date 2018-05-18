@@ -186,6 +186,7 @@ var themeConfig = {
     'week.dayname.backgroundColor': 'inherit',
     'week.dayname.textAlign': 'left',
     'week.today.color': '#333',
+    'week.pastDay.color': '#bbb',
 
     // week vertical panel 'vpanel'
     'week.vpanelSplitter.border': '1px solid #e5e5e5',
@@ -224,7 +225,7 @@ var themeConfig = {
     'week.currentTime.fontSize': '11px',
     'week.currentTime.fontWeight': 'normal',
 
-    'week.pastTime.color': '#333',
+    'week.pastTime.color': '#bbb',
     'week.pastTime.fontWeight': 'normal',
 
     'week.futureTime.color': '#333',

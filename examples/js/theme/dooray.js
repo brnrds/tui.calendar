@@ -53,6 +53,7 @@ var THEME_DOORAY = {
     'week.dayname.backgroundColor': 'inherit',
     'week.dayname.textAlign': 'left',
     'week.today.color': '#135de6',
+    'week.pastDay.color': '#bbb',
 
     // week vertical panel 'vpanel'
     'week.vpanelSplitter.border': '1px solid #ddd',
@@ -89,7 +90,7 @@ var THEME_DOORAY = {
     'week.currentTime.fontSize': '13px',
     'week.currentTime.fontWeight': 'bold',
 
-    'week.pastTime.color': '#555',
+    'week.pastTime.color': '#bbb',
     'week.pastTime.fontWeight': 'normal',
 
     'week.futureTime.color': '#555',

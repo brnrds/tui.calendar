@@ -24,14 +24,16 @@ var SIXTY_MINUTES = 60;
 /**
  * Returns a list of time labels from start to end.
  * For hidden labels near the current time, set to hidden: true.
- * @param {number} start - start time
- * @param {number} end - end time
+ * @param {object} opt - TimeGrid.options
  * @param {boolean} hasHourMarker - Whether the current time is displayed
  * @param {number} timezoneOffset - timezone offset
  * @param {object} styles - styles
  * @returns {Array.<Object>}
  */
-function getHoursLabels(start, end, hasHourMarker, timezoneOffset, styles) {
+function getHoursLabels(opt, hasHourMarker, timezoneOffset, styles) {
+    var hourStart = opt.hourStart;
+    var hourEnd = opt.hourEnd;
+    var renderEndDate = datetime.parse(opt.renderEndDate);
     var shiftByOffset = parseInt(timezoneOffset / SIXTY_MINUTES, 10);
     var shiftMinutes = Math.abs(timezoneOffset % SIXTY_MINUTES);
     var now = new TZDate();
@@ -46,7 +48,7 @@ function getHoursLabels(start, end, hasHourMarker, timezoneOffset, styles) {
 
     // shift the array and take elements between start and end
     common.shiftArray(hoursRange, shiftByOffset);
-    common.takeArray(hoursRange, start, end);
+    common.takeArray(hoursRange, hourStart, hourEnd);
 
     nowHours = common.shiftHours(now.getHours(), shiftByOffset);
     nowHoursIndex = util.inArray(nowHours, hoursRange);
@@ -62,11 +64,10 @@ function getHoursLabels(start, end, hasHourMarker, timezoneOffset, styles) {
     return util.map(hoursRange, function(hour, index) {
         var color;
         var fontWeight;
+        var isPast = (hasHourMarker && index <= nowHoursIndex) ||
+                     (renderEndDate < now && !datetime.isSameDate(renderEndDate, now));
 
-        if (!hasHourMarker) {
-            color = 'inherit';
-            fontWeight = 'inherit';
-        } else if (index <= nowHoursIndex) {
+        if (isPast) {
             // past
             color = styles.pastTimeColor;
             fontWeight = styles.pastTimeFontWeight;
@@ -263,8 +264,6 @@ TimeGrid.prototype._getHourmarkerViewModel = function(now, grids, range) {
  */
 TimeGrid.prototype._getTimezoneViewModel = function(currentHours, styles) {
     var opt = this.options;
-    var hourStart = opt.hourStart;
-    var hourEnd = opt.hourEnd;
     var primaryOffset = Timezone.getOffset();
     var timezones = opt.timezones;
     var timezonesLength = timezones.length;
@@ -279,7 +278,7 @@ TimeGrid.prototype._getTimezoneViewModel = function(currentHours, styles) {
 
         timezone = timezones[timezones.length - index - 1];
         timezoneDifference = timezone.timezoneOffset + primaryOffset;
-        timeSlots = getHoursLabels(hourStart, hourEnd, currentHours >= 0, timezoneDifference, styles);
+        timeSlots = getHoursLabels(opt, currentHours >= 0, timezoneDifference, styles);
 
         hourmarker.setMinutes(hourmarker.getMinutes() + timezoneDifference);
 
@@ -312,7 +311,7 @@ TimeGrid.prototype._getBaseViewModel = function(viewModel) {
 
     return util.extend(baseViewModel, {
         timezones: this._getTimezoneViewModel(baseViewModel.todaymarkerLeft, styles),
-        hoursLabels: getHoursLabels(opt.hourStart, opt.hourEnd, baseViewModel.todaymarkerLeft >= 0, 0, styles),
+        hoursLabels: getHoursLabels(opt, baseViewModel.todaymarkerLeft >= 0, 0, styles),
         styles: styles
     });
 };
