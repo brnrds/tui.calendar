@@ -57,14 +57,14 @@ function generateTime(schedule, renderStart, renderEnd) {
 
     schedule.isAllday = chance.bool({likelihood: 30});
     if (schedule.isAllday) {
-        schedule.category = 'allday';
-    } else if (chance.bool({likelihood: 30})) {
-        schedule.category = SCHEDULE_CATEGORY[chance.integer({min: 0, max: 1})];
+/*         schedule.category = 'allday';
+ */    } else if (chance.bool({likelihood: 30})) {
+/*         schedule.category = SCHEDULE_CATEGORY[chance.integer({min: 0, max: 1})];
         if (schedule.category === SCHEDULE_CATEGORY[1]) {
             schedule.dueDateClass = 'morning';
-        }
+        } */
     } else {
-        schedule.category = 'time';
+        schedule.category = 'timeBackground';
     }
 
     startDate.add(chance.integer({min: 0, max: diffDate}), 'days');

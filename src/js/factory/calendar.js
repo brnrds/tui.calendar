@@ -385,7 +385,7 @@ Calendar.prototype._initialize = function(options) {
         workweek: false,
         scheduleFilter: function(schedule) {
             return Boolean(schedule.isVisible) &&
-                (schedule.category === 'allday' || schedule.category === 'time');
+                (schedule.category === 'allday' || schedule.category === 'time' || schedule.category === 'timeBackground');
         }
     }, util.pick(options, 'month') || {});
 

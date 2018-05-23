@@ -81,6 +81,13 @@ var DEFAULT_PANELS = [
         autoHeight: true,
         handlers: ['click', 'creation', 'move', 'resize'],
         show: true
+    },
+    {
+        name: 'timeBackground',
+        type: 'timegrid',
+        autoHeight: true,
+        handlers: ['click', 'creation', 'move', 'resize'],
+        show: true
     }
 ];
 
@@ -97,7 +104,8 @@ module.exports = function(baseController, layoutContainer, dragHandler, options)
         'milestone': util.isArray(taskView) ? util.inArray('milestone', taskView) >= 0 : taskView,
         'task': util.isArray(taskView) ? util.inArray('task', taskView) >= 0 : taskView,
         'allday': util.isArray(scheduleView) ? util.inArray('allday', scheduleView) >= 0 : scheduleView,
-        'time': util.isArray(scheduleView) ? util.inArray('time', scheduleView) >= 0 : scheduleView
+        'time': util.isArray(scheduleView) ? util.inArray('time', scheduleView) >= 0 : scheduleView,
+        'timeBackground': util.isArray(scheduleView) ? util.inArray('timeBackground', scheduleView) >= 0 : scheduleView
     };
 
     // Make panels by view sequence and visibilities
